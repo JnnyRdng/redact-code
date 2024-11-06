@@ -1,10 +1,10 @@
 {
   "name": "redact-code",
   "displayName": "redact-code",
-  "description": "helloworld",
+  "description": "Visually Redact Strings",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.94.0"
   },
   "categories": [
     "Other"
@@ -12,10 +12,30 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "properties": {
+        "redact-code.redactedWords" : {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of strings to redact."
+        }
+      }
+    },
     "commands": [
       {
-        "command": "redact-code.helloWorld",
-        "title": "Hello World"
+        "command": "redact-code.addRedactedWord",
+        "title": "Add a word to redact"
+      },
+      {
+        "command": "redact-code.activate",
+        "title": "Redact code"
+      },
+      { 
+        "command": "redact-code.deactivate",
+        "title": "Reveal redacted code"
       }
     ]
   },
