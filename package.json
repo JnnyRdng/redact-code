@@ -9,12 +9,19 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
       "properties": {
-        "redact-code.redactedWords" : {
+        "redact-code.active": {
+          "type": "boolean",
+          "default": false,
+          "description": "Redact or reveal!"
+        },
+        "redact-code.redactedWords": {
           "type": "array",
           "items": {
             "type": "string"
@@ -33,7 +40,7 @@
         "command": "redact-code.activate",
         "title": "Redact code"
       },
-      { 
+      {
         "command": "redact-code.deactivate",
         "title": "Reveal redacted code"
       }

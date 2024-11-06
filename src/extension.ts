@@ -1,47 +1,88 @@
 import * as vscode from 'vscode';
 
 let redactedWords: string[] = [];
-let redact = false;
 
 redactedWords = vscode.workspace.getConfiguration("redact-code").get<string[]>("redactedWords", []);
-console.log(redactedWords)
 
 const decorationType = vscode.window.createTextEditorDecorationType({
 	color: 'transparent',  // Makes the original text invisible
 	textDecoration: 'none',
-	letterSpacing: '-0.5em', // Adjust spacing if needed for clean overlay
+	letterSpacing: '-1em',
 });
 
 function updateRedactions(editor: vscode.TextEditor, words: string[]) {
-	if (!editor || words.length === 0) return;
+	console.log('starting redaction');
+	const redact = vscode.workspace.getConfiguration("redact-code").get<boolean>("active", false);
+	console.log(`is ${redact ? 'on' : 'off'}`);
+	if (!editor || words.length === 0) {
+		return;
+	}
 	const text = editor.document.getText();
 	const decorations: vscode.DecorationOptions[] = [];
 
 	words.forEach(word => {
-			let match;
-			const regex = new RegExp(`\\b${word}\\b`, 'g');  // Word boundary to avoid partial matches
-			while ((match = regex.exec(text)) !== null) {
-					const start = editor.document.positionAt(match.index);
-					const end = editor.document.positionAt(match.index + word.length);
-
-					decorations.push({
-							range: new vscode.Range(start, end),
-							hoverMessage: word,
-							renderOptions: {
-									before: {
-											contentText: '█'.repeat(word.length),
-											color: 'black',
-											fontWeight: 'bold',
-											textDecoration: 'none'
-									},
-									// Hide the actual text by setting it to transparent
-									after: {
-											color: 'transparent',
-											textDecoration: 'none'
-									}
-							}
-					});
+		let match;
+		const regex = new RegExp(`${word}`, 'g');  // Word boundary to avoid partial matches
+		while ((match = regex.exec(text)) !== null) {
+			const start = editor.document.positionAt(match.index);
+			const end = editor.document.positionAt(match.index + word.length);
+			const cursors = editor.selections;
+			const isCursorInRange = (cursors: readonly vscode.Selection[], start: vscode.Position, end: vscode.Position) => {
+				for (const cursor of cursors) {
+					if (cursor.active.isAfter(start) && cursor.active.isBefore(end)) {
+						return true;
+					}
+				}
+				return false;
+			};
+			const inRange = isCursorInRange(cursors, start, end);
+			if (inRange || !redact) {
+				continue;
 			}
+
+			let currentPos = start;
+			while (currentPos.isBefore(end) && end.isAfter(start)) {
+
+				let next;
+				// Check if we're at the end of the line
+				if (currentPos.character < editor.document.lineAt(currentPos.line).range.end.character) {
+					// If not at the end of the line, move one character forward
+					next = currentPos.translate(0, 1);
+				} else {
+					// If at the end of the line, move to the start of the next line
+					next = new vscode.Position(currentPos.line + 1, 0);
+				}
+				const range = new vscode.Range(currentPos, next);
+				decorations.push({
+					range,
+					renderOptions: {
+						after: {
+							contentText: '*',
+							color: 'inherit',
+							textDecoration: 'underline',
+						},
+					},
+				});
+				currentPos = next;
+			}
+
+			// decorations.push({
+			// 	range: new vscode.Range(start, end),
+			// 	hoverMessage: word,
+			// 	renderOptions: {
+			// 		after: {
+			// 			contentText: '*'.repeat(word.length),
+			// 			color: 'inherit',
+			// 			textDecoration: 'none',
+			// 		},
+			// 		// Hide the actual text by setting it to transparent
+			// 		// after: {
+			// 		// 	color: 'transparent',
+			// 		// 	textDecoration: 'none'
+			// 		// }
+			// 	}
+			// });
+		}
 	});
 
 	editor.setDecorations(decorationType, decorations);
@@ -50,10 +91,10 @@ function updateRedactions(editor: vscode.TextEditor, words: string[]) {
 export function activate(context: vscode.ExtensionContext) {
 
 	const editor = vscode.window.activeTextEditor;
-		if (editor) {
-			console.log("Text document changed");
-			updateRedactions(editor, redactedWords);
-		}
+	if (editor) {
+		console.log("Text document changed");
+		updateRedactions(editor, redactedWords);
+	}
 
 
 	vscode.window.onDidChangeActiveTextEditor(editor => {
@@ -70,6 +111,13 @@ export function activate(context: vscode.ExtensionContext) {
 			updateRedactions(editor, redactedWords);
 		}
 	}, null, context.subscriptions);
+
+	vscode.window.onDidChangeTextEditorSelection(event => {
+		const editor = vscode.window.activeTextEditor;
+		if (editor) {
+			updateRedactions(editor, redactedWords);
+		}
+	});
 
 	vscode.languages.registerHoverProvider('*', {
 		provideHover(document, position) {
@@ -102,10 +150,20 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	vscode.commands.registerCommand('redact-code.activate', async () => {
 		const word = await vscode.window.showQuickPick(['Activate', 'Reveal']);
-		redact = word === 'Activate';
+		const isActive = word === 'Activate';
+		vscode.workspace.getConfiguration("redact-code").update("active", isActive, vscode.ConfigurationTarget.Global)
+			.then(() => {
+				vscode.window.showInformationMessage('Configuration updated successfully!');
+				const editor = vscode.window.activeTextEditor;
+				if (editor) {
+					updateRedactions(editor, redactedWords);
+				}
+			}, (error) => {
+				vscode.window.showErrorMessage('Error updating configuration: ' + error);
+			});
 	});
 
-	
+
 }
 
 export function deactivate() { }
