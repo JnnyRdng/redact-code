@@ -28,6 +28,11 @@
           },
           "default": [],
           "description": "List of strings to redact."
+        },
+        "redact-code.char": {
+          "type": "string",
+          "default": "*",
+          "description": "The character to use to redact text"
         }
       }
     },
@@ -38,11 +43,11 @@
       },
       {
         "command": "redact-code.activate",
-        "title": "Redact code"
+        "title": "Toggle redact-code"
       },
       {
-        "command": "redact-code.deactivate",
-        "title": "Reveal redacted code"
+        "command": "redact-code.character",
+        "title": "Choose redact character"
       }
     ]
   },
@@ -55,7 +60,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.95.0",
+    "@types/vscode": "^1.94.0",
     "@types/mocha": "^10.0.9",
     "@types/node": "20.x",
     "@typescript-eslint/eslint-plugin": "^8.10.0",

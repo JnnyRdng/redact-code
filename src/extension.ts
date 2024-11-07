@@ -10,10 +10,19 @@ const decorationType = vscode.window.createTextEditorDecorationType({
 	letterSpacing: '-1em',
 });
 
+const isCursorInRange = (cursors: readonly vscode.Selection[], start: vscode.Position, end: vscode.Position) => {
+	for (const cursor of cursors) {
+		if (cursor.active.isAfter(start) && cursor.active.isBefore(end)) {
+			return true;
+		}
+	}
+	return false;
+};
+
 function updateRedactions(editor: vscode.TextEditor, words: string[]) {
-	console.log('starting redaction');
 	const redact = vscode.workspace.getConfiguration("redact-code").get<boolean>("active", false);
-	console.log(`is ${redact ? 'on' : 'off'}`);
+	const character = vscode.workspace.getConfiguration("redact-code").get<string>("char", "*");
+	console.log('character', character)
 	if (!editor || words.length === 0) {
 		return;
 	}
@@ -22,19 +31,12 @@ function updateRedactions(editor: vscode.TextEditor, words: string[]) {
 
 	words.forEach(word => {
 		let match;
-		const regex = new RegExp(`${word}`, 'g');  // Word boundary to avoid partial matches
+		const regex = new RegExp(`${word}`, 'g');
 		while ((match = regex.exec(text)) !== null) {
 			const start = editor.document.positionAt(match.index);
 			const end = editor.document.positionAt(match.index + word.length);
 			const cursors = editor.selections;
-			const isCursorInRange = (cursors: readonly vscode.Selection[], start: vscode.Position, end: vscode.Position) => {
-				for (const cursor of cursors) {
-					if (cursor.active.isAfter(start) && cursor.active.isBefore(end)) {
-						return true;
-					}
-				}
-				return false;
-			};
+
 			const inRange = isCursorInRange(cursors, start, end);
 			if (inRange || !redact) {
 				continue;
@@ -57,7 +59,7 @@ function updateRedactions(editor: vscode.TextEditor, words: string[]) {
 					range,
 					renderOptions: {
 						after: {
-							contentText: '*',
+							contentText: character,
 							color: 'inherit',
 							textDecoration: 'underline',
 						},
@@ -65,23 +67,6 @@ function updateRedactions(editor: vscode.TextEditor, words: string[]) {
 				});
 				currentPos = next;
 			}
-
-			// decorations.push({
-			// 	range: new vscode.Range(start, end),
-			// 	hoverMessage: word,
-			// 	renderOptions: {
-			// 		after: {
-			// 			contentText: '*'.repeat(word.length),
-			// 			color: 'inherit',
-			// 			textDecoration: 'none',
-			// 		},
-			// 		// Hide the actual text by setting it to transparent
-			// 		// after: {
-			// 		// 	color: 'transparent',
-			// 		// 	textDecoration: 'none'
-			// 		// }
-			// 	}
-			// });
 		}
 	});
 
@@ -95,7 +80,6 @@ export function activate(context: vscode.ExtensionContext) {
 		console.log("Text document changed");
 		updateRedactions(editor, redactedWords);
 	}
-
 
 	vscode.window.onDidChangeActiveTextEditor(editor => {
 		if (editor) {
@@ -130,7 +114,10 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	vscode.workspace.onDidChangeConfiguration(event => {
-		if (event.affectsConfiguration("redact-code.redactedWords")) {
+		if (event.affectsConfiguration("redact-code.redactedWords") ||
+			event.affectsConfiguration("redact-code.active") ||
+			event.affectsConfiguration("redact-code.character")
+		) {
 			redactedWords = vscode.workspace.getConfiguration("redact-code").get<string[]>("redactedWords", []);
 			const editor = vscode.window.activeTextEditor;
 			if (editor) {
@@ -153,16 +140,26 @@ export function activate(context: vscode.ExtensionContext) {
 		const isActive = word === 'Activate';
 		vscode.workspace.getConfiguration("redact-code").update("active", isActive, vscode.ConfigurationTarget.Global)
 			.then(() => {
-				vscode.window.showInformationMessage('Configuration updated successfully!');
-				const editor = vscode.window.activeTextEditor;
-				if (editor) {
-					updateRedactions(editor, redactedWords);
-				}
+				const nowActive = "Code redacted!";
+				const nowInactive = "Code revealed!";
+				vscode.window.showInformationMessage(isActive ? nowActive : nowInactive);
 			}, (error) => {
 				vscode.window.showErrorMessage('Error updating configuration: ' + error);
 			});
 	});
 
+	vscode.commands.registerCommand("redact-code.character", async () => {
+		const choice = await vscode.window.showQuickPick(['*', '█']);
+		console.log(choice)
+		if (!choice) return;
+		console.log('setting....');
+		vscode.workspace.getConfiguration("redact-code").update("char", choice, vscode.ConfigurationTarget.Global)
+		.then(() => {
+			console.log('character set successfully');
+		}, (error) => {
+			console.log("failure!", error)
+		});
+	});
 
 }
 
